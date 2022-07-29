@@ -1,0 +1,178 @@
+//ok test 1401-5-6
+#include <WiFi.h> 
+//#include "time.h"//in dastor ba #include "time.h" yeki ast.
+#include <time.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+//#include <Adafruit_SSD1306.h>
+#include <Adafruit_SH110X.h>
+#define OLED_RESET LED_BUILTIN  //4
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET -1   //   QT-PY / XIAO
+Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+//voltaj oled 3.3v ast.
+//Adafruit_SSD1306 display(OLED_RESET);
+/* Uncomment the initialize the I2C address , uncomment only one, If you get a totally blank screen try the other*/
+#define i2c_Address 0x3c //initialize with the I2C addr 0x3C Typically eBay OLED's
+//oled to esp32 * SCL pin GPIO->22 SDA pin GPIO->21 
+//int timezone =7* 3600;
+int timezone = 4.5 * 3600;//int timezone =7* 3600; //iran summer 4.5
+int dst = 0;
+const char* ssid       = "f-tanha";
+const char* password   = "7627914932";
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = (3600*3.5);//iran +3.5 Hours
+int ledPin = 2;
+String weekDays[7]={"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+String months[12]={"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+void printLocalTime()
+{
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+}
+
+void graf()
+{
+   time_t now = time(nullptr);
+  struct tm* p_tm = localtime(&now);
+  
+  Serial.print(p_tm->tm_mday);
+  Serial.print("/");
+  Serial.print(p_tm->tm_mon + 1);
+  Serial.print("/");
+  Serial.print(p_tm->tm_year + 1900);
+  
+  Serial.print(" ");
+  
+  Serial.print(p_tm->tm_hour);
+  Serial.print(":");
+  Serial.print(p_tm->tm_min);
+  Serial.print(":");
+  Serial.println(p_tm->tm_sec);
+  
+  // Clear the buffer.
+  display.clearDisplay();
+ 
+  display.setTextSize(3);
+ // display.setTextColor(WHITE);
+  display.setTextColor(SH110X_WHITE);
+  display.setCursor(0,0);
+  display.print(p_tm->tm_hour);
+  display.print(":");
+  if( p_tm->tm_min <10)
+    display.print("0"); 
+  display.print(p_tm->tm_min);
+  
+  display.setTextSize(2);
+  display.setCursor(90,5);
+  display.print(".");
+  if( p_tm->tm_sec <10)
+    display.print("0"); 
+  display.print(p_tm->tm_sec);
+
+  display.setTextSize(2);
+  display.setCursor(5,35);
+  display.print(p_tm->tm_mday);
+  display.print("/");
+  display.print(p_tm->tm_mon + 1);
+  display.print("/");
+  display.print(p_tm->tm_year + 1900);
+
+  display.setTextSize(0);
+  display.setCursor(9,56);
+  if ((p_tm->tm_mon) >=0)//wday adad rooz hafteh ast// 5=Friday
+  {
+   display.print(months[p_tm->tm_mon]); 
+  }
+
+  display.setTextSize(0);
+  display.setCursor(70,56);  
+ 
+   if ((p_tm->tm_wday) >=0)//wday adad rooz hafteh ast// 5=Friday
+  {
+   display.print(weekDays[p_tm->tm_wday]);   
+  }
+
+  display.display(); 
+}
+void setup()
+{
+  Serial.begin(115200);
+  
+  pinMode(ledPin,OUTPUT);
+  digitalWrite(ledPin,LOW);
+  // display.begin(SH1106G_SWITCHCAPVCC, 0x3C);
+  delay(250); // wait for the OLED to power up
+  display.begin(i2c_Address, true); // Address 0x3C default
+  // Clear the buffer.
+  display.clearDisplay();
+  display.display();
+  
+  display.setTextSize(1);
+ // display.setTextColor(WHITE);
+  display.setTextColor(SH110X_WHITE);
+  display.setCursor(0,0);
+  display.println("Wifi connecting to ");
+  display.println( ssid );
+
+  WiFi.begin(ssid,password);
+ 
+  display.println("\nConnecting");
+
+  display.display();
+  
+  //connect to WiFi
+  Serial.printf("Connecting to %s ", ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+      display.print("."); 
+      display.display();
+      
+  configTime(timezone, dst, "pool.ntp.org","time.nist.gov");
+  display.println("\nWaiting for NTP...");
+
+  while(!time(nullptr)){
+     Serial.print("*");
+     
+     delay(1000);
+  }
+  display.println("\nTime response....OK"); 
+  display.display();  
+  delay(1000);
+
+  display.clearDisplay();
+  display.display();   
+  }
+  Serial.println(" CONNECTED");
+  
+  //init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  printLocalTime();
+
+  //disconnect WiFi as it's no longer needed
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+}
+
+void loop()
+{
+  if (WiFi.status()!= WL_CONNECTED )
+  {
+  digitalWrite(ledPin,HIGH);
+  delay(500);
+  digitalWrite(ledPin,LOW);
+  delay(500);  
+  printLocalTime();
+  graf();
+
+  }
+}
